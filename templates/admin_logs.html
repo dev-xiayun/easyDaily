@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block title %}日志查询{% endblock %}
+{% set active_nav = 'logs' %}
+{% block content %}
+<section class="glass-card filter-card mb-4 slide-up">
+  <h1 class="section-title mb-3">日志查询</h1>
+  <div class="row g-3 align-items-end filter-fields">
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="glow-label form-label">年</label>
+      <select id="yearSelect" class="form-select neon-input"></select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="glow-label form-label">月</label>
+      <select id="monthSelect" class="form-select neon-input"></select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label class="glow-label form-label">日</label>
+      <input type="number" id="dayInput" class="form-control neon-input" min="1" placeholder="可选">
+    </div>
+    <div class="col-6 col-md-6 col-lg-3">
+      <label class="glow-label form-label">人员</label>
+      <div class="combo-field" id="userCombo"></div>
+    </div>
+    <div class="col-6 col-md-6 col-lg-3">
+      <label class="glow-label form-label">项目</label>
+      <div class="combo-field" id="projectCombo"></div>
+    </div>
+  </div>
+  <div class="filter-actions">
+    <button type="button" id="searchBtn" class="btn btn-neon">查询</button>
+    <button type="button" id="exportBtn" class="btn btn-download">导出 Excel</button>
+    <button type="button" id="importAttendanceBtn" class="btn btn-outline-neon">导入考勤</button>
+    <button type="button" id="importLogsBtn" class="btn btn-outline-neon">导入日志</button>
+    <input type="file" id="attendanceFileInput" class="d-none" accept=".xlsx,.xls">
+    <input type="file" id="logsFileInput" class="d-none" accept=".xlsx,.xls">
+  </div>
+  <div id="pageAlert" class="alert d-none mt-3"></div>
+</section>
+
+<section class="glass-card mb-4 slide-up" id="projectSummaryPanel">
+  <div class="history-empty">查询后显示项目统计</div>
+</section>
+
+<section class="glass-card results-card slide-up">
+  <div id="projectPersonChartPanel" class="project-person-chart-panel d-none"></div>
+  <div class="table-responsive detail-table-wrap admin-logs-table-wrap">
+    <table class="table table-dark table-hover align-middle mb-0 admin-logs-table">
+      <colgroup>
+        <col class="col-name">
+        <col class="col-date">
+        <col class="col-weekday">
+        <col class="col-project">
+        <col class="col-hours">
+        <col class="col-content">
+        <col class="col-attendance">
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="col-name">姓名</th>
+          <th class="col-date">日期</th>
+          <th class="col-weekday">星期</th>
+          <th class="col-project">项目</th>
+          <th class="col-hours">工时（h）</th>
+          <th class="col-content">工作内容</th>
+          <th class="col-attendance">考勤</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin_logs.js') }}"></script>
+{% endblock %}

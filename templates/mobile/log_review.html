@@ -1,0 +1,47 @@
+{% extends "layout_mobile.html" %}
+{% block title %}日报审核{% endblock %}
+{% block mobile_title %}日报审核{% endblock %}
+{% block mobile_subtitle %}审核所负责项目的人员日报{% endblock %}
+{% set active_nav = 'log-review' %}
+{% block mobile_header_extra %}
+<div class="mobile-header-tools mobile-filter-row">
+  <select id="yearSelect" class="form-select neon-input"></select>
+  <select id="monthSelect" class="form-select neon-input"></select>
+  <select id="statusSelect" class="form-select neon-input">
+    <option value="">全部状态</option>
+    <option value="pending" selected>待审核</option>
+    <option value="approved">已通过</option>
+    <option value="rejected">已驳回</option>
+  </select>
+  <button id="searchBtn" class="btn btn-neon">查询</button>
+</div>
+{% endblock %}
+{% block content %}
+<div id="pageAlert" class="alert d-none mb-2"></div>
+<div id="reviewList">
+  <div class="history-empty">加载中...</div>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content modal-dark">
+      <div class="modal-header">
+        <h5 class="modal-title">驳回日报</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="glow-label form-label">驳回原因</label>
+        <textarea id="rejectReasonInput" class="form-control neon-input" rows="4" placeholder="请填写驳回原因"></textarea>
+        <div id="rejectAlert" class="alert d-none mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-danger-sm" id="confirmRejectBtn">确认驳回</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mobile/log_review.js') }}"></script>
+{% endblock %}

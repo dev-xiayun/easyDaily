@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block body_class %}auth-page{% endblock %}
+{% block title %}登录 - 日志管理系统{% endblock %}
+{% block content %}
+<div class="auth-page-shell">
+  <div class="auth-page-main">
+    <div class="row justify-content-center w-100">
+      <div class="col-lg-5">
+        <div class="glass-card slide-up">
+          <h1 class="hero-title hero-title-sm text-center mb-2">登录系统</h1>
+          <div id="loginAlert" class="alert d-none"></div>
+          <form id="loginForm">
+            <div class="mb-3">
+              <label class="glow-label form-label">用户名</label>
+              <input type="text" class="form-control neon-input" id="username" required>
+            </div>
+            <div class="mb-3">
+              <label class="glow-label form-label">密码</label>
+              <input type="password" class="form-control neon-input" id="password" required>
+            </div>
+            <div class="mb-4">
+              <label class="glow-label form-label">验证码</label>
+              <div class="captcha-row">
+                <input type="text" class="form-control neon-input" id="captcha" maxlength="6" autocomplete="off" placeholder="请输入验证码" required>
+                <button type="button" class="captcha-image-btn" id="captchaRefresh" title="点击刷新验证码" aria-label="刷新验证码">
+                  <img id="captchaImage" class="captcha-image" src="/api/auth/captcha" alt="验证码">
+                </button>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-neon w-100">登录</button>
+          </form>
+          <div class="text-center mt-3">
+            <a href="/register" class="link-muted">没有账号？去注册</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% include "_auth_footer.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/device_redirect.js') }}"></script>
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+{% endblock %}

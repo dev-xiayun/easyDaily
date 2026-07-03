@@ -1,0 +1,78 @@
+{% extends "layout_mobile.html" %}
+{% block title %}我的日报{% endblock %}
+{% block mobile_title %}我的日报{% endblock %}
+{% block mobile_subtitle %}次日中午 12:00 前可编辑，提交后由负责人审核{% endblock %}
+{% set active_nav = 'my-logs' %}
+{% block mobile_header_extra %}
+<div class="mobile-header-tools">
+  <select id="yearSelect" class="form-select neon-input"></select>
+  <select id="monthSelect" class="form-select neon-input"></select>
+  <button id="reloadBtn" class="btn btn-outline-neon">刷新</button>
+</div>
+{% endblock %}
+{% block content %}
+<div id="pageAlert" class="alert d-none mb-2"></div>
+
+<section class="mobile-card">
+  <button class="mobile-summary-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#summaryCollapse">
+    <span>项目工时统计</span>
+    <i class="bi bi-chevron-down"></i>
+  </button>
+  <div class="collapse" id="summaryCollapse">
+    <div class="mobile-summary-body" id="projectSummaryPanel">
+      <div class="history-empty">加载中...</div>
+    </div>
+  </div>
+</section>
+
+<section class="mobile-card">
+  <div id="dayTabs" class="mobile-day-tabs mb-3"></div>
+  <div id="dayPanel">
+    <div class="history-empty">请选择日期</div>
+  </div>
+</section>
+
+<button type="button" class="mobile-fab d-none" id="addLogFab" aria-label="新增日志">
+  <i class="bi bi-plus-lg"></i>
+</button>
+
+<div class="modal fade mobile-log-modal" id="logModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content modal-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logModalTitle">新增日志</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="step1" class="log-modal-step1">
+          <label class="glow-label form-label">搜索并选择项目</label>
+          <input type="text" class="form-control neon-input mb-3" id="projectSearch" placeholder="输入项目名称">
+          <div id="projectOptions" class="mobile-project-list"></div>
+        </div>
+        <div id="step2" class="d-none">
+          <div class="mb-2"><span class="tag tag-blue" id="selectedProjectName"></span></div>
+          <div class="mb-3">
+            <label class="glow-label form-label">投入工时（小时）</label>
+            <input type="number" step="0.01" min="0.01" class="form-control neon-input" id="hoursInput">
+          </div>
+          <div class="mb-3">
+            <label class="glow-label form-label">工作内容</label>
+            <textarea class="form-control neon-input" id="contentInput" rows="4"></textarea>
+          </div>
+        </div>
+        <div id="modalAlert" class="alert d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-outline-neon d-none" id="prevStepBtn">上一步</button>
+        <button type="button" class="btn btn-neon" id="nextStepBtn" disabled>下一步</button>
+        <button type="button" class="btn btn-neon d-none" id="saveLogBtn">保存</button>
+        <button type="button" class="btn btn-neon d-none" id="resubmitLogBtn">重新提交</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mobile/my_logs.js') }}"></script>
+{% endblock %}

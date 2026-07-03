@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+{% block title %}项目管理{% endblock %}
+{% set active_nav = 'projects' %}
+{% block content %}
+<section class="glass-card mb-4 slide-up project-stats-section">
+  <h1 class="section-title mb-1">项目管理</h1>
+  <p class="section-subtitle mb-3">仅启用状态的项目可被用户选择填写日志</p>
+  <div id="projectStatsPanel">
+    <div class="history-empty">加载中...</div>
+  </div>
+</section>
+
+<section class="glass-card slide-up">
+  <div class="row g-3 align-items-end mb-3">
+    <div class="col-md-3">
+      <label class="glow-label form-label">项目名称</label>
+      <input type="text" id="nameFilter" class="form-control neon-input" placeholder="支持项目名称、别名模糊查询">
+    </div>
+    <div class="col-md-2">
+      <label class="glow-label form-label">状态</label>
+      <select id="statusFilter" class="form-select neon-input">
+        <option value="">全部</option>
+        <option value="enabled" selected>启用</option>
+        <option value="disabled">禁用</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <button type="button" id="searchBtn" class="btn btn-neon w-100">查询</button>
+    </div>
+    <div class="col-md-5 d-flex gap-2 justify-content-md-end">
+      <button id="addProjectBtn" class="btn btn-outline-neon flex-grow-1 flex-md-grow-0"><i class="bi bi-plus-lg me-2"></i>新增项目</button>
+      <button id="saveProjectsBtn" class="btn btn-neon flex-grow-1 flex-md-grow-0"><i class="bi bi-save2 me-2"></i>保存</button>
+    </div>
+  </div>
+  <div id="pageAlert" class="alert d-none mb-3"></div>
+  <div class="table-responsive detail-table-wrap">
+    <table class="table table-dark align-middle mb-0">
+      <thead>
+        <tr>
+          <th>项目名称</th>
+          <th>别名（; 或 ； 分隔）</th>
+          <th>项目负责人</th>
+          <th>状态</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="projectBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal fade" id="createProjectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content modal-dark">
+      <div class="modal-header">
+        <h5 class="modal-title">新增项目</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="glow-label form-label">项目名称</label>
+          <input type="text" class="form-control neon-input" id="createProjectName" maxlength="100">
+        </div>
+        <div class="mb-3">
+          <label class="glow-label form-label">别名（; 或 ； 分隔）</label>
+          <input type="text" class="form-control neon-input" id="createProjectAliases" placeholder="可选，多个别名用分号分隔">
+        </div>
+        <div class="mb-3">
+          <label class="glow-label form-label">项目负责人</label>
+          <select class="form-select neon-input" id="createProjectManager">
+            <option value="">未设置</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="glow-label form-label">状态</label>
+          <select class="form-select neon-input" id="createProjectStatus">
+            <option value="enabled" selected>启用</option>
+            <option value="disabled">禁用</option>
+          </select>
+        </div>
+        <div id="createProjectAlert" class="alert d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-neon" id="confirmCreateProjectBtn">确认新增</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin_projects.js') }}"></script>
+{% endblock %}

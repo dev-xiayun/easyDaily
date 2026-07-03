@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}日志管理系统{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <div class="bg-layer">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <div class="container py-4 py-lg-5">
+    <nav class="top-nav fade-in">
+      {% if user and user.role == 'admin' %}
+        <a class="nav-link {% if active_nav == 'logs' %}active{% endif %}" href="/admin/logs"><i class="bi bi-search me-2"></i>日志查询</a>
+        <a class="nav-link {% if active_nav == 'projects' %}active{% endif %}" href="/admin/projects"><i class="bi bi-kanban me-2"></i>项目管理</a>
+        <a class="nav-link {% if active_nav == 'users' %}active{% endif %}" href="/admin/users"><i class="bi bi-people me-2"></i>人员管理</a>
+        <a class="nav-link {% if active_nav == 'convert' %}active{% endif %}" href="/admin/convert"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Excel转换</a>
+      {% elif user %}
+        <a class="nav-link {% if active_nav == 'my-logs' %}active{% endif %}" href="/my-logs"><i class="bi bi-journal-text me-2"></i>我的日志</a>
+        {% if user.is_project_manager %}
+        <a class="nav-link {% if active_nav == 'log-review' %}active{% endif %}" href="/log-review"><i class="bi bi-clipboard-check me-2"></i>日志审核</a>
+        {% endif %}
+      {% endif %}
+      {% if user %}
+        <button type="button" class="nav-user" id="profileTrigger" title="个人信息">
+          <i class="bi bi-person-circle me-1"></i><span id="navDisplayName">{{ user.display_name }}</span>
+        </button>
+        <button id="logoutBtn" class="btn btn-outline-neon btn-sm">退出</button>
+      {% endif %}
+    </nav>
+
+    {% block content %}{% endblock %}
+  </div>
+
+  {% if user %}
+  <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-dark">
+        <div class="modal-header">
+          <h5 class="modal-title">个人信息</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="glow-label form-label">账号</label>
+            <input type="text" class="form-control neon-input" id="profileUsername" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="glow-label form-label">姓名</label>
+            <input type="text" class="form-control neon-input" id="profileDisplayName" maxlength="50">
+          </div>
+          <div class="mb-3">
+            <label class="glow-label form-label">新密码</label>
+            <input type="password" class="form-control neon-input" id="profilePassword" placeholder="不修改请留空">
+          </div>
+          <div class="mb-3">
+            <label class="glow-label form-label">确认新密码</label>
+            <input type="password" class="form-control neon-input" id="profileConfirmPassword" placeholder="修改密码时需再次输入">
+          </div>
+          <p class="section-subtitle mb-0">密码长度需超过 6 位，无复杂度要求</p>
+          <div id="profileAlert" class="alert d-none mt-3"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-neon" id="saveProfileBtn">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script>
+    document.getElementById("logoutBtn")?.addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    });
+  </script>
+  {% if user %}
+  <script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+  {% endif %}
+  {% if user and user.role != 'admin' %}
+  <script src="{{ url_for('static', filename='js/device_redirect.js') }}"></script>
+  {% endif %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% block body_class %}auth-page{% endblock %}
+{% block title %}注册 - 日志管理系统{% endblock %}
+{% block content %}
+<div class="auth-page-shell">
+  <div class="auth-page-main">
+    <div class="row justify-content-center w-100">
+      <div class="col-lg-5">
+        <div class="glass-card slide-up">
+          <h1 class="hero-title hero-title-sm text-center mb-2">用户注册</h1>
+          <p class="hero-subtitle text-center mb-4">注册后需管理员审核通过方可登录</p>
+          <div id="registerAlert" class="alert d-none"></div>
+          <form id="registerForm">
+            <div class="mb-3">
+              <label class="glow-label form-label">用户名</label>
+              <input type="text" class="form-control neon-input" id="username" required>
+            </div>
+            <div class="mb-3">
+              <label class="glow-label form-label">姓名</label>
+              <input type="text" class="form-control neon-input" id="displayName" placeholder="显示名称">
+            </div>
+            <div class="mb-3">
+              <label class="glow-label form-label">密码</label>
+              <input type="password" class="form-control neon-input" id="password" required>
+            </div>
+            <div class="mb-4">
+              <label class="glow-label form-label">确认密码</label>
+              <input type="password" class="form-control neon-input" id="confirmPassword" required>
+            </div>
+            <button type="submit" class="btn btn-neon w-100">注册</button>
+          </form>
+          <div class="text-center mt-3">
+            <a href="/login" class="link-muted">已有账号？去登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% include "_auth_footer.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/register.js') }}"></script>
+{% endblock %}

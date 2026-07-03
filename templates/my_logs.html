@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block title %}我的日志{% endblock %}
+{% set active_nav = 'my-logs' %}
+{% block content %}
+<section class="glass-card mb-4 slide-up">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+      <h1 class="section-title mb-1">我的日志</h1>
+      <p class="section-subtitle mb-0">每日日志在次日中午 12:00 前可新增、编辑、删除；提交后由项目负责人审核，超时未审核将自动通过</p>
+    </div>
+    <div class="d-flex gap-2">
+      <select id="yearSelect" class="form-select neon-input w-auto"></select>
+      <select id="monthSelect" class="form-select neon-input w-auto"></select>
+      <button id="reloadBtn" class="btn btn-outline-neon">刷新</button>
+    </div>
+  </div>
+  <div id="pageAlert" class="alert d-none"></div>
+</section>
+
+<section class="glass-card mb-4 slide-up" id="projectSummaryPanel">
+  <div class="history-empty">加载中...</div>
+</section>
+
+<section class="glass-card slide-up">
+  <div id="dayTabs" class="day-tabs mb-3"></div>
+  <div id="dayPanel">
+    <div class="history-empty">请选择年月加载日志</div>
+  </div>
+</section>
+
+<div class="modal fade" id="logModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content modal-dark">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logModalTitle">新增日志</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="step1" class="log-modal-step1">
+          <label class="glow-label form-label">搜索并选择项目</label>
+          <input type="text" class="form-control neon-input mb-3" id="projectSearch" placeholder="输入项目名称模糊查询">
+          <div id="projectOptions" class="project-options"></div>
+        </div>
+        <div id="step2" class="d-none">
+          <div class="mb-2"><span class="tag tag-blue" id="selectedProjectName"></span></div>
+          <div class="mb-3">
+            <label class="glow-label form-label">投入工时（含加班，保留 2 位小数）</label>
+            <input type="number" step="0.01" min="0.01" class="form-control neon-input" id="hoursInput">
+          </div>
+          <div class="mb-3">
+            <label class="glow-label form-label">工作内容描述</label>
+            <textarea class="form-control neon-input" id="contentInput" rows="4"></textarea>
+          </div>
+        </div>
+        <div id="modalAlert" class="alert d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-outline-neon d-none" id="prevStepBtn">上一步</button>
+        <button type="button" class="btn btn-neon" id="nextStepBtn" disabled>下一步</button>
+        <button type="button" class="btn btn-neon d-none" id="saveLogBtn">保存</button>
+        <button type="button" class="btn btn-neon d-none" id="resubmitLogBtn">重新提交</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/my_logs.js') }}"></script>
+{% endblock %}

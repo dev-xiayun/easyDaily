@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block title %}日志审核{% endblock %}
+{% set active_nav = 'log-review' %}
+{% block content %}
+<section class="glass-card filter-card mb-4 slide-up">
+  <h1 class="section-title mb-1">日志审核</h1>
+  <p class="section-subtitle mb-3">审核所负责项目的人员日志；超过日志日次日 12:00 未处理的待审日志将自动通过</p>
+  <div class="row g-3 align-items-end">
+    <div class="col-md-2">
+      <label class="glow-label form-label">年</label>
+      <select id="yearSelect" class="form-select neon-input"></select>
+    </div>
+    <div class="col-md-2">
+      <label class="glow-label form-label">月</label>
+      <select id="monthSelect" class="form-select neon-input"></select>
+    </div>
+    <div class="col-md-2">
+      <label class="glow-label form-label">日</label>
+      <input type="number" id="dayInput" class="form-control neon-input" min="1" placeholder="可选">
+    </div>
+    <div class="col-md-2">
+      <label class="glow-label form-label">人员</label>
+      <div class="combo-field" id="userCombo"></div>
+    </div>
+    <div class="col-md-2">
+      <label class="glow-label form-label">项目</label>
+      <div class="combo-field" id="projectCombo"></div>
+    </div>
+    <div class="col-md-2">
+      <label class="glow-label form-label">审核状态</label>
+      <select id="statusSelect" class="form-select neon-input">
+        <option value="">全部</option>
+        <option value="pending" selected>待审核</option>
+        <option value="approved">已通过</option>
+        <option value="rejected">已驳回</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <button id="searchBtn" class="btn btn-neon w-100">查询</button>
+    </div>
+  </div>
+  <div id="pageAlert" class="alert d-none mt-3"></div>
+</section>
+
+<section class="glass-card results-card slide-up">
+  <div class="table-responsive detail-table-wrap">
+    <table class="table table-dark table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>姓名</th>
+          <th>日期</th>
+          <th>星期</th>
+          <th>项目</th>
+          <th>工时（小时）</th>
+          <th>工作内容</th>
+          <th>审核状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass-modal">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">驳回日志</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="glow-label form-label">驳回原因</label>
+        <textarea id="rejectReasonInput" class="form-control neon-input" rows="4" placeholder="请填写驳回原因，便于填报人修改后重新提交"></textarea>
+        <div id="rejectAlert" class="alert d-none mt-3"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-danger-sm" id="confirmRejectBtn">确认驳回</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/log_review.js') }}"></script>
+{% endblock %}
