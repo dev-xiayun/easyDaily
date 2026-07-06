@@ -1,8 +1,16 @@
 (() => {
-  const { escapeHtml, renderLoadingState } = window.LogConverter;
+  const {
+    escapeHtml,
+    renderLoadingState,
+    renderProjectLogSummary,
+    renderProjectPersonHoursChart,
+    summarizePersonHours,
+  } = window.LogConverter;
 
   const logBody = document.getElementById("logBody");
   const pageAlert = document.getElementById("pageAlert");
+  const projectSummaryPanel = document.getElementById("projectSummaryPanel");
+  const projectPersonChartPanel = document.getElementById("projectPersonChartPanel");
   const yearSelect = document.getElementById("yearSelect");
   const monthSelect = document.getElementById("monthSelect");
   const dayInput = document.getElementById("dayInput");
@@ -253,6 +261,25 @@
     return params.toString();
   }
 
+  function isProjectFilterActive() {
+    const params = new URLSearchParams(buildQuery());
+    return Boolean(params.get("project_id") || params.get("project_name"));
+  }
+
+  function getProjectFilterLabel(items) {
+    const input = document.querySelector("#projectCombo .combo-input");
+    const typedName = input?.value.trim();
+    if (typedName) return typedName;
+    const logProject = items.find((item) => item.project_name)?.project_name;
+    return logProject || "所选项目";
+  }
+
+  function hideProjectPersonChart() {
+    if (!projectPersonChartPanel) return;
+    projectPersonChartPanel.classList.add("d-none");
+    projectPersonChartPanel.innerHTML = "";
+  }
+
   function renderActions(log) {
     if (!log.reviewable) {
       if (log.reject_reason) {
@@ -289,6 +316,13 @@
     }
 
     renderLoadingState(logBody, "查询中...");
+    if (projectSummaryPanel) renderLoadingState(projectSummaryPanel, "统计加载中...");
+    if (isProjectFilterActive()) {
+      renderLoadingState(projectPersonChartPanel, "人员统计加载中...");
+      projectPersonChartPanel.classList.remove("d-none");
+    } else {
+      hideProjectPersonChart();
+    }
 
     const response = await fetch(`/api/review/logs?${buildQuery()}`);
     const data = await response.json();
@@ -298,6 +332,26 @@
     }
 
     const items = data.items || [];
+    const dateParams = getDateQueryParams();
+    const rangeLabel = dateParams.day
+      ? `${dateParams.year} 年 ${dateParams.month} 月 ${dateParams.day} 日`
+      : `${dateParams.year} 年 ${dateParams.month} 月`;
+
+    renderProjectLogSummary(projectSummaryPanel, data.summary, {
+      title: `${rangeLabel}负责项目统计`,
+      emptyText: "当前筛选条件下暂无日志数据",
+    });
+
+    if (isProjectFilterActive()) {
+      const personSummary = summarizePersonHours(items);
+      renderProjectPersonHoursChart(projectPersonChartPanel, personSummary, {
+        projectName: getProjectFilterLabel(items),
+        rangeLabel,
+      });
+    } else {
+      hideProjectPersonChart();
+    }
+
     logBody.innerHTML = items.length
       ? items
           .map(

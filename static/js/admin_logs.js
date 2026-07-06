@@ -11,6 +11,7 @@
 
   let userCombo = null;
   let projectCombo = null;
+  let logsCache = [];
 
   function showAlert(message, type = "danger") {
     pageAlert.className = `alert alert-${type}`;
@@ -332,6 +333,7 @@
     }
 
     const items = data.items || [];
+    logsCache = items;
     const dateParams = getDateQueryParams();
     const rangeLabel = dateParams.day
       ? `${dateParams.year} 年 ${dateParams.month} 月 ${dateParams.day} 日`
@@ -364,12 +366,41 @@
             <td class="col-hours">${log.hours}</td>
             <td class="col-content content-cell">${escapeHtml(log.work_content || "")}</td>
             <td class="col-attendance attendance-cell">${escapeHtml(log.attendance || "-")}</td>
+            <td class="col-action action-cell">${
+              log.attendance_only || !log.id
+                ? '<span class="text-muted">—</span>'
+                : `<button type="button" class="btn btn-action-sm btn-danger-sm delete-log" data-id="${log.id}">删除</button>`
+            }</td>
           </tr>
         `
           )
           .join("")
-      : '<tr><td colspan="7" class="text-center empty-cell">暂无数据</td></tr>';
+      : '<tr><td colspan="8" class="text-center empty-cell">暂无数据</td></tr>';
   }
+
+  async function deleteLog(logId, displayName, logDate) {
+    const confirmed = window.confirm(
+      `确定删除 ${displayName} 在 ${logDate} 的这条日志吗？\n删除后将单独为该人员开放该日日志填报 12 小时。`
+    );
+    if (!confirmed) return;
+
+    const response = await fetch(`/api/admin/logs/${logId}`, { method: "DELETE" });
+    const data = await response.json();
+    if (!response.ok) {
+      showAlert(data.error || "删除失败");
+      return;
+    }
+    showAlert(data.message || "删除成功", "success");
+    await searchLogs();
+  }
+
+  logBody.addEventListener("click", (event) => {
+    const deleteBtn = event.target.closest(".delete-log");
+    if (!deleteBtn) return;
+    const log = logsCache.find((item) => String(item.id) === deleteBtn.dataset.id);
+    if (!log) return;
+    deleteLog(log.id, log.display_name, log.log_date);
+  });
 
   async function importAttendance(file) {
     pageAlert.classList.add("d-none");
@@ -410,6 +441,91 @@
 
     showAlert(`${data.message || "导入成功"}${data.extra || ""}`, "success");
     await searchLogs();
+  }
+
+  const openLogModalEl = document.getElementById("openLogModal");
+  const openLogModal = new bootstrap.Modal(openLogModalEl);
+  const openLogDateInput = document.getElementById("openLogDateInput");
+  const activeOpenPeriodsPanel = document.getElementById("activeOpenPeriodsPanel");
+  const openLogAlert = document.getElementById("openLogAlert");
+
+  function formatTodayForInput() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function renderActiveOpenPeriods(items) {
+    if (!items.length) {
+      activeOpenPeriodsPanel.innerHTML = '<p class="section-subtitle mb-0">当前没有进行中的开放记录</p>';
+      return;
+    }
+
+    activeOpenPeriodsPanel.innerHTML = `
+      <h6 class="mini-title mb-2">当前开放中</h6>
+      <div class="open-period-list">
+        ${items
+          .map(
+            (item) => `
+              <div class="open-period-item">
+                <span class="open-period-date">${escapeHtml(item.log_date)}</span>
+                <span class="open-period-expire">截止 ${escapeHtml(item.expires_at)}</span>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  async function loadActiveOpenPeriods() {
+    renderLoadingState(activeOpenPeriodsPanel, "加载中...");
+    const response = await fetch("/api/admin/logs/open");
+    const data = await response.json();
+    if (!response.ok) {
+      activeOpenPeriodsPanel.innerHTML = '<div class="history-empty">加载失败</div>';
+      return;
+    }
+    renderActiveOpenPeriods(data.items || []);
+  }
+
+  function openLogModalDialog() {
+    openLogDateInput.max = formatTodayForInput();
+    openLogDateInput.value = formatTodayForInput();
+    openLogAlert.classList.add("d-none");
+    loadActiveOpenPeriods();
+    openLogModal.show();
+  }
+
+  async function confirmOpenLog() {
+    const log_date = openLogDateInput.value;
+    if (!log_date) {
+      openLogAlert.className = "alert alert-warning";
+      openLogAlert.textContent = "请选择开放日期";
+      openLogAlert.classList.remove("d-none");
+      return;
+    }
+
+    const response = await fetch("/api/admin/logs/open", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ log_date }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      openLogAlert.className = "alert alert-danger";
+      openLogAlert.textContent = data.error || "开放失败";
+      openLogAlert.classList.remove("d-none");
+      return;
+    }
+
+    openLogAlert.className = "alert alert-success";
+    openLogAlert.textContent = data.message || "开放成功";
+    openLogAlert.classList.remove("d-none");
+    await loadActiveOpenPeriods();
+    showAlert(data.message || "开放成功", "success");
   }
 
   userCombo = createComboField(document.getElementById("userCombo"), {
@@ -464,6 +580,9 @@
     if (!file) return;
     await importLogs(file);
   });
+
+  document.getElementById("openLogBtn").addEventListener("click", openLogModalDialog);
+  document.getElementById("confirmOpenLogBtn").addEventListener("click", confirmOpenLog);
 
   yearSelect.addEventListener("change", updateDayInputLimits);
   monthSelect.addEventListener("change", updateDayInputLimits);

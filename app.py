@@ -22,6 +22,7 @@ from database import (
     ROLE_ADMIN,
     approve_work_log,
     authenticate,
+    admin_delete_work_log,
     create_project,
     create_work_log,
     delete_work_log,
@@ -34,7 +35,9 @@ from database import (
     list_review_user_options,
     list_projects,
     list_user_month_logs,
+    list_active_log_open_periods,
     merge_admin_logs_with_attendance,
+    open_log_date,
     query_admin_users,
     query_review_logs,
     query_attendance_records,
@@ -42,6 +45,7 @@ from database import (
     register_user,
     reject_work_log,
     resubmit_work_log,
+    review_method_label,
     save_projects,
     summarize_admin_projects,
     summarize_admin_users,
@@ -105,9 +109,17 @@ def export_query_logs_excel(logs: list[dict]) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "日志查询"
-    headers = ["姓名", "用户名", "日期", "星期", "项目", "工时（小时）", "工作内容", "考勤", "创建时间"]
+    headers = ["姓名", "用户名", "日期", "星期", "项目", "工时（小时）", "工作内容", "考勤", "审核方式", "审核人", "创建时间"]
     ws.append(headers)
     for item in logs:
+        review_label = ""
+        manager_name = ""
+        if not item.get("attendance_only"):
+            review_label = item.get("review_method_label") or review_method_label(
+                str(item.get("review_status") or ""),
+                item.get("reviewed_by"),
+            )
+            manager_name = item.get("manager_name") or ""
         ws.append(
             [
                 item["display_name"],
@@ -118,6 +130,8 @@ def export_query_logs_excel(logs: list[dict]) -> bytes:
                 item["hours"],
                 item["work_content"],
                 item.get("attendance", ""),
+                review_label,
+                manager_name,
                 item["created_at"],
             ]
         )
@@ -347,6 +361,20 @@ def api_admin_user_password(user_id: int):
     return jsonify({"message": "密码设置成功", "user": user})
 
 
+@app.route("/api/admin/users/<int:user_id>/display_name", methods=["PUT"])
+@admin_required
+def api_admin_user_display_name(user_id: int):
+    payload = request.get_json(silent=True) or {}
+    try:
+        user = update_user_profile(
+            user_id,
+            display_name=str(payload.get("display_name", "")).strip(),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"message": "姓名已更新", "user": user})
+
+
 @app.route("/api/admin/projects", methods=["GET"])
 @admin_required
 def api_admin_projects():
@@ -509,7 +537,8 @@ def api_review_logs():
         project_name=request.args.get("project_name", ""),
         review_status=request.args.get("review_status", ""),
     )
-    return jsonify({"items": logs, "projects": list_managed_projects(user["id"])})
+    summary = summarize_logs_by_project(logs)
+    return jsonify({"items": logs, "summary": summary, "projects": list_managed_projects(user["id"])})
 
 
 @app.route("/api/review/logs/<int:log_id>/approve", methods=["POST"])
@@ -589,6 +618,52 @@ def api_admin_query_logs():
     )
     summary = summarize_logs_by_project(logs)
     return jsonify({"items": items, "summary": summary})
+
+
+@app.route("/api/admin/logs/open", methods=["GET"])
+@admin_required
+def api_admin_list_log_open_periods():
+    return jsonify({"items": list_active_log_open_periods()})
+
+
+@app.route("/api/admin/logs/open", methods=["POST"])
+@admin_required
+def api_admin_open_log_date():
+    payload = request.get_json(silent=True) or {}
+    log_date = str(payload.get("log_date", "")).strip()
+    if not log_date:
+        return jsonify({"error": "请选择开放日期"}), 400
+    user = current_user()
+    try:
+        period = open_log_date(log_date, user["id"])
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(
+        {
+            "message": f"已开放 {period['log_date']} 的日志填报，有效期至 {period['expires_at']}",
+            "period": period,
+        }
+    )
+
+
+@app.route("/api/admin/logs/<int:log_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_log(log_id: int):
+    user = current_user()
+    try:
+        result = admin_delete_work_log(log_id, user["id"])
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    period = result["open_period"]
+    return jsonify(
+        {
+            "message": (
+                f"已删除 {period['user_display_name']} 在 {result['log_date']} 的日志，"
+                f"并已为该人员单独开放至 {period['expires_at']}"
+            ),
+            **result,
+        }
+    )
 
 
 @app.route("/api/admin/attendance/import", methods=["POST"])

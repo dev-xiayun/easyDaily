@@ -31,6 +31,7 @@
     <button type="button" id="exportBtn" class="btn btn-download">导出 Excel</button>
     <button type="button" id="importAttendanceBtn" class="btn btn-outline-neon">导入考勤</button>
     <button type="button" id="importLogsBtn" class="btn btn-outline-neon">导入日志</button>
+    <button type="button" id="openLogBtn" class="btn btn-outline-neon">开放日志</button>
     <input type="file" id="attendanceFileInput" class="d-none" accept=".xlsx,.xls">
     <input type="file" id="logsFileInput" class="d-none" accept=".xlsx,.xls">
   </div>
@@ -53,6 +54,7 @@
         <col class="col-hours">
         <col class="col-content">
         <col class="col-attendance">
+        <col class="col-action">
       </colgroup>
       <thead>
         <tr>
@@ -63,12 +65,39 @@
           <th class="col-hours">工时（h）</th>
           <th class="col-content">工作内容</th>
           <th class="col-attendance">考勤</th>
+          <th class="col-action">操作</th>
         </tr>
       </thead>
       <tbody id="logBody"></tbody>
     </table>
   </div>
 </section>
+
+<div class="modal fade" id="openLogModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass-modal">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">开放日志</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="section-subtitle">选择日期后，全站用户在该日期起 12 小时内可新增该日日志（不受 17:00 与次日 12:00 截止限制）。</p>
+        <div class="mb-3">
+          <label class="glow-label form-label">开放日期</label>
+          <input type="date" class="form-control neon-input" id="openLogDateInput">
+        </div>
+        <div id="activeOpenPeriodsPanel" class="mb-2">
+          <div class="history-empty">加载中...</div>
+        </div>
+        <div id="openLogAlert" class="alert d-none mt-3"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-neon" id="confirmOpenLogBtn">确认开放</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/admin_logs.js') }}"></script>

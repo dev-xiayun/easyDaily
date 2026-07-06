@@ -151,12 +151,15 @@
     const totalHours = summary.total_hours || 0;
     const totalLogs = summary.total_logs || 0;
     const projectCount = summary.project_count || projects.length;
+    const totalUsers = summary.total_users;
+    const showUserStats = projects.some((item) => item.user_count !== undefined);
 
     const tableRows = projects
       .map(
         (item) => `
         <tr>
           <td>${escapeHtml(item.project_name)}</td>
+          ${showUserStats ? `<td>${item.user_count ?? 0}</td>` : ""}
           <td>${item.count}</td>
           <td>${item.hours}</td>
           <td>${item.percent}%</td>
@@ -165,30 +168,45 @@
       )
       .join("");
 
+    const userStatCard =
+      totalUsers !== undefined
+        ? `
+        <div class="col-md-3 col-6">
+          <div class="stat-card stat-card-4">
+            <div class="stat-icon"><i class="bi bi-people"></i></div>
+            <div class="stat-value">${totalUsers}</div>
+            <div class="stat-label">参与人员</div>
+          </div>
+        </div>`
+        : "";
+
+    const statColClass = totalUsers !== undefined ? "col-md-3 col-6" : "col-md-4";
+
     container.innerHTML = `
       <h3 class="mini-title mb-3">${escapeHtml(title)}</h3>
       <div class="row g-3 mb-3 log-summary-stats">
-        <div class="col-md-4">
+        <div class="${statColClass}">
           <div class="stat-card stat-card-1">
             <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
             <div class="stat-value">${totalHours}</div>
             <div class="stat-label">总工时（小时）</div>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="${statColClass}">
           <div class="stat-card stat-card-2">
             <div class="stat-icon"><i class="bi bi-kanban"></i></div>
             <div class="stat-value">${projectCount}</div>
             <div class="stat-label">涉及项目</div>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="${statColClass}">
           <div class="stat-card stat-card-3">
             <div class="stat-icon"><i class="bi bi-journal-text"></i></div>
             <div class="stat-value">${totalLogs}</div>
             <div class="stat-label">日志条数</div>
           </div>
         </div>
+        ${userStatCard}
       </div>
       <div class="log-summary-body">
         <div class="row g-4 log-summary-split">
@@ -198,6 +216,7 @@
                 <thead>
                   <tr>
                     <th>项目</th>
+                    ${showUserStats ? "<th>人员</th>" : ""}
                     <th>条数</th>
                     <th>工时（小时）</th>
                     <th>占比</th>

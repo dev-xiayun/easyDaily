@@ -26,6 +26,7 @@ LOG_REVIEW_PENDING = "pending"
 LOG_REVIEW_APPROVED = "approved"
 LOG_REVIEW_REJECTED = "rejected"
 LOG_ADD_START_HOUR = 17
+LOG_OPEN_DURATION_HOURS = 12
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
 
@@ -129,6 +130,47 @@ def init_db() -> None:
 
         _migrate_work_logs(conn)
         _migrate_attendance_records(conn)
+        _migrate_log_open_periods(conn)
+        _migrate_user_log_open_periods(conn)
+
+
+def _migrate_log_open_periods(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS log_open_periods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            log_date TEXT NOT NULL UNIQUE,
+            opened_by INTEGER NOT NULL,
+            opened_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY (opened_by) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_log_open_periods_expires ON log_open_periods(expires_at)"
+    )
+
+
+def _migrate_user_log_open_periods(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_log_open_periods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            log_date TEXT NOT NULL,
+            opened_by INTEGER NOT NULL,
+            opened_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            UNIQUE(user_id, log_date),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (opened_by) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_log_open_periods_expires ON user_log_open_periods(expires_at)"
+    )
 
 
 def _migrate_attendance_records(conn: sqlite3.Connection) -> None:
@@ -681,6 +723,155 @@ def get_review_deadline(log_date: date) -> datetime:
     return datetime.combine(log_date + timedelta(days=1), time(12, 0, 0))
 
 
+def is_log_date_admin_opened(log_date: date, now: datetime | None = None) -> bool:
+    now = now or datetime.now()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT expires_at FROM log_open_periods WHERE log_date = ?",
+            (log_date.isoformat(),),
+        ).fetchone()
+    if row is None:
+        return False
+    expires_at = datetime.strptime(row["expires_at"], "%Y-%m-%d %H:%M:%S")
+    return now < expires_at
+
+
+def list_active_log_open_periods(now: datetime | None = None) -> list[dict[str, Any]]:
+    now = now or datetime.now()
+    ts = now.strftime("%Y-%m-%d %H:%M:%S")
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT lop.log_date, lop.opened_at, lop.expires_at, u.display_name AS opened_by_name
+            FROM log_open_periods lop
+            JOIN users u ON u.id = lop.opened_by
+            WHERE lop.expires_at > ?
+            ORDER BY lop.log_date DESC, lop.expires_at DESC
+            """,
+            (ts,),
+        ).fetchall()
+    return [
+        {
+            "log_date": row["log_date"],
+            "opened_at": row["opened_at"],
+            "expires_at": row["expires_at"],
+            "opened_by_name": row["opened_by_name"],
+        }
+        for row in rows
+    ]
+
+
+def open_log_date(log_date: str, opened_by: int) -> dict[str, Any]:
+    try:
+        log_day = datetime.strptime(log_date, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("日期格式无效") from exc
+
+    today = datetime.now().date()
+    if log_day > today:
+        raise ValueError("不能开放未来日期的日志")
+
+    opened_at = datetime.now()
+    expires_at = opened_at + timedelta(hours=LOG_OPEN_DURATION_HOURS)
+    opened_at_text = opened_at.strftime("%Y-%m-%d %H:%M:%S")
+    expires_at_text = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO log_open_periods (log_date, opened_by, opened_at, expires_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(log_date) DO UPDATE SET
+                opened_by = excluded.opened_by,
+                opened_at = excluded.opened_at,
+                expires_at = excluded.expires_at
+            """,
+            (log_day.isoformat(), opened_by, opened_at_text, expires_at_text),
+        )
+        row = conn.execute(
+            """
+            SELECT lop.log_date, lop.opened_at, lop.expires_at, u.display_name AS opened_by_name
+            FROM log_open_periods lop
+            JOIN users u ON u.id = lop.opened_by
+            WHERE lop.log_date = ?
+            """,
+            (log_day.isoformat(),),
+        ).fetchone()
+    return {
+        "log_date": row["log_date"],
+        "opened_at": row["opened_at"],
+        "expires_at": row["expires_at"],
+        "opened_by_name": row["opened_by_name"],
+    }
+
+
+def is_user_log_date_opened(log_date: date, user_id: int, now: datetime | None = None) -> bool:
+    now = now or datetime.now()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT expires_at FROM user_log_open_periods WHERE user_id = ? AND log_date = ?",
+            (user_id, log_date.isoformat()),
+        ).fetchone()
+    if row is None:
+        return False
+    expires_at = datetime.strptime(row["expires_at"], "%Y-%m-%d %H:%M:%S")
+    return now < expires_at
+
+
+def open_log_date_for_user(user_id: int, log_date: str, opened_by: int) -> dict[str, Any]:
+    try:
+        log_day = datetime.strptime(log_date, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("日期格式无效") from exc
+
+    today = datetime.now().date()
+    if log_day > today:
+        raise ValueError("不能开放未来日期的日志")
+
+    with get_conn() as conn:
+        user_row = conn.execute("SELECT id, display_name FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user_row is None:
+            raise ValueError("用户不存在")
+
+    opened_at = datetime.now()
+    expires_at = opened_at + timedelta(hours=LOG_OPEN_DURATION_HOURS)
+    opened_at_text = opened_at.strftime("%Y-%m-%d %H:%M:%S")
+    expires_at_text = expires_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_log_open_periods (user_id, log_date, opened_by, opened_at, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, log_date) DO UPDATE SET
+                opened_by = excluded.opened_by,
+                opened_at = excluded.opened_at,
+                expires_at = excluded.expires_at
+            """,
+            (user_id, log_day.isoformat(), opened_by, opened_at_text, expires_at_text),
+        )
+        row = conn.execute(
+            """
+            SELECT ulop.user_id, ulop.log_date, ulop.opened_at, ulop.expires_at,
+                   u.display_name AS user_display_name,
+                   admin.display_name AS opened_by_name
+            FROM user_log_open_periods ulop
+            JOIN users u ON u.id = ulop.user_id
+            JOIN users admin ON admin.id = ulop.opened_by
+            WHERE ulop.user_id = ? AND ulop.log_date = ?
+            """,
+            (user_id, log_day.isoformat()),
+        ).fetchone()
+    return {
+        "user_id": row["user_id"],
+        "user_display_name": row["user_display_name"],
+        "log_date": row["log_date"],
+        "opened_at": row["opened_at"],
+        "expires_at": row["expires_at"],
+        "opened_by_name": row["opened_by_name"],
+    }
+
+
 def run_auto_approve_pending_logs(now: datetime | None = None) -> int:
     now = now or datetime.now()
     ts = now_text()
@@ -711,12 +902,16 @@ def is_log_editable(log_date: date, now: datetime | None = None) -> bool:
     return now < get_review_deadline(log_date)
 
 
-def can_user_add_log(log_date: date, now: datetime | None = None) -> bool:
+def can_user_add_log(log_date: date, now: datetime | None = None, user_id: int | None = None) -> bool:
     now = now or datetime.now()
-    if not is_log_editable(log_date, now):
-        return False
     today = now.date()
     if log_date > today:
+        return False
+    if is_log_date_admin_opened(log_date, now):
+        return True
+    if user_id is not None and is_user_log_date_opened(log_date, user_id, now):
+        return True
+    if not is_log_editable(log_date, now):
         return False
     if log_date == today:
         return now >= datetime.combine(today, time(LOG_ADD_START_HOUR, 0))
@@ -742,6 +937,14 @@ def can_manager_review_log(review_status: str, log_date: date, now: datetime | N
     return now < get_review_deadline(log_date)
 
 
+def review_method_label(review_status: str, reviewed_by: int | None) -> str:
+    if review_status == LOG_REVIEW_PENDING:
+        return ""
+    if review_status in {LOG_REVIEW_APPROVED, LOG_REVIEW_REJECTED}:
+        return "人工审核" if reviewed_by else "自动审核"
+    return ""
+
+
 def _serialize_work_log(row: sqlite3.Row) -> dict[str, Any]:
     log_date = datetime.strptime(row["log_date"], "%Y-%m-%d").date()
     review_status = row["review_status"]
@@ -765,7 +968,9 @@ def _serialize_work_log(row: sqlite3.Row) -> dict[str, Any]:
         "reject_reason": row["reject_reason"] or "",
         "reviewed_by": row["reviewed_by"],
         "reviewer_name": row["reviewer_name"] if "reviewer_name" in row.keys() else None,
+        "manager_name": row["manager_name"] if "manager_name" in row.keys() else None,
         "reviewed_at": row["reviewed_at"],
+        "review_method_label": review_method_label(review_status, row["reviewed_by"]),
         "editable": can_user_edit_log(review_status, log_date),
         "deletable": can_user_delete_log(review_status, log_date),
         "resubmittable": can_user_resubmit_log(review_status),
@@ -778,38 +983,52 @@ def _serialize_work_log(row: sqlite3.Row) -> dict[str, Any]:
 def _work_log_select() -> str:
     return """
         SELECT wl.*, u.username, u.display_name, p.name AS project_name,
-               rv.display_name AS reviewer_name
+               rv.display_name AS reviewer_name,
+               pm.display_name AS manager_name
         FROM work_logs wl
         JOIN users u ON u.id = wl.user_id
         JOIN projects p ON p.id = wl.project_id
         LEFT JOIN users rv ON rv.id = wl.reviewed_by
+        LEFT JOIN users pm ON pm.id = p.manager_user_id
     """
 
 
 def summarize_logs_by_project(logs: list[dict[str, Any]]) -> dict[str, Any]:
     project_map: dict[str, dict[str, Any]] = {}
     total_hours = 0.0
+    all_user_ids: set[int] = set()
+    valid_logs: list[dict[str, Any]] = []
 
     for log in logs:
+        if log.get("attendance_only"):
+            continue
+        valid_logs.append(log)
         name = str(log.get("project_name") or "未知项目")
         hours = float(log.get("hours") or 0)
+        user_id = log.get("user_id")
         total_hours += hours
         bucket = project_map.setdefault(
             name,
-            {"project_name": name, "hours": 0.0, "count": 0},
+            {"project_name": name, "hours": 0.0, "count": 0, "_user_ids": set()},
         )
         bucket["hours"] += hours
         bucket["count"] += 1
+        if user_id is not None:
+            uid = int(user_id)
+            bucket["_user_ids"].add(uid)
+            all_user_ids.add(uid)
 
     projects = sorted(project_map.values(), key=lambda item: (-item["hours"], item["project_name"]))
     rounded_total = round_hours(total_hours)
     for item in projects:
         item["hours"] = round_hours(item["hours"])
         item["percent"] = round(item["hours"] / rounded_total * 100, 1) if rounded_total else 0.0
+        item["user_count"] = len(item.pop("_user_ids"))
 
     return {
         "total_hours": rounded_total,
-        "total_logs": len(logs),
+        "total_logs": len(valid_logs),
+        "total_users": len(all_user_ids),
         "project_count": len(projects),
         "projects": projects,
     }
@@ -845,7 +1064,7 @@ def list_user_month_logs(user_id: int, year: int, month: int) -> dict[str, Any]:
                 "day": current.day,
                 "weekday": WEEKDAY_NAMES[current.weekday()],
                 "editable": is_log_editable(current),
-                "addable": can_user_add_log(current),
+                "addable": can_user_add_log(current, user_id=user_id),
                 "logs": logs_by_date.get(key, []),
             }
         )
@@ -859,10 +1078,12 @@ def list_user_month_logs(user_id: int, year: int, month: int) -> dict[str, Any]:
 
 def create_work_log(user_id: int, project_id: int, log_date: str, hours: float, work_content: str) -> dict[str, Any]:
     log_day = datetime.strptime(log_date, "%Y-%m-%d").date()
-    if not can_user_add_log(log_day):
+    if not can_user_add_log(log_day, user_id=user_id):
         now = datetime.now()
         if log_day == now.date() and now < datetime.combine(log_day, time(LOG_ADD_START_HOUR, 0)):
             raise ValueError("请在当天下午 17:00 之后再新增日志")
+        if log_day > now.date():
+            raise ValueError("不能为未来日期新增日志")
         raise ValueError("该日期暂不可新增日志")
 
     project = get_project(project_id, enabled_only=True)
@@ -1053,6 +1274,23 @@ def delete_work_log(log_id: int, user_id: int, is_admin: bool = False) -> None:
         if not is_admin and not can_user_delete_log(review_status, log_day):
             raise ValueError("该日志当前不可删除")
         conn.execute("DELETE FROM work_logs WHERE id = ?", (log_id,))
+
+
+def admin_delete_work_log(log_id: int, admin_id: int) -> dict[str, Any]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT user_id, log_date FROM work_logs WHERE id = ?", (log_id,)).fetchone()
+        if row is None:
+            raise ValueError("日志不存在")
+        target_user_id = int(row["user_id"])
+        log_date = row["log_date"]
+        conn.execute("DELETE FROM work_logs WHERE id = ?", (log_id,))
+
+    open_period = open_log_date_for_user(target_user_id, log_date, admin_id)
+    return {
+        "user_id": target_user_id,
+        "log_date": log_date,
+        "open_period": open_period,
+    }
 
 
 def resubmit_work_log(log_id: int, user_id: int, hours: float, work_content: str) -> dict[str, Any]:
@@ -1454,9 +1692,11 @@ def merge_admin_logs_with_attendance(
                     "attendance_only": True,
                     "review_status": "",
                     "review_status_label": "",
+                    "review_method_label": "",
                     "reject_reason": "",
                     "reviewed_by": None,
                     "reviewer_name": None,
+                    "manager_name": None,
                     "reviewed_at": None,
                     "editable": False,
                     "deletable": False,

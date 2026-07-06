@@ -10,9 +10,12 @@
   const statusFilter = document.getElementById("statusFilter");
   const passwordModalEl = document.getElementById("passwordModal");
   const passwordModal = new bootstrap.Modal(passwordModalEl);
+  const displayNameModalEl = document.getElementById("displayNameModal");
+  const displayNameModal = new bootstrap.Modal(displayNameModalEl);
 
   const PAGE_SIZE = 50;
   let pendingUserId = null;
+  let pendingDisplayNameUserId = null;
   let usersCache = [];
   let currentPage = 1;
   let paginationMeta = {
@@ -47,6 +50,7 @@
 
   function renderActions(user) {
     const parts = [
+      `<button type="button" class="btn btn-outline-neon btn-action-sm edit-display-name" data-id="${user.id}">修改姓名</button>`,
       `<button type="button" class="btn btn-outline-neon btn-action-sm set-password" data-id="${user.id}">设置密码</button>`,
     ];
     if (user.role !== "admin") {
@@ -231,6 +235,44 @@
     passwordModal.show();
   }
 
+  function openDisplayNameModal(user) {
+    pendingDisplayNameUserId = user.id;
+    document.getElementById("displayNameTargetUsername").textContent = user.username;
+    document.getElementById("adminDisplayNameInput").value = user.display_name || "";
+    document.getElementById("displayNameAlert").classList.add("d-none");
+    displayNameModal.show();
+  }
+
+  async function saveDisplayName() {
+    const display_name = document.getElementById("adminDisplayNameInput").value.trim();
+    const alertBox = document.getElementById("displayNameAlert");
+
+    if (!display_name) {
+      alertBox.className = "alert alert-warning";
+      alertBox.textContent = "姓名不能为空";
+      alertBox.classList.remove("d-none");
+      return;
+    }
+
+    const response = await fetch(`/api/admin/users/${pendingDisplayNameUserId}/display_name`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alertBox.className = "alert alert-danger";
+      alertBox.textContent = data.error || "保存失败";
+      alertBox.classList.remove("d-none");
+      return;
+    }
+
+    displayNameModal.hide();
+    pendingDisplayNameUserId = null;
+    await loadUsers(currentPage);
+    showAlert("姓名已更新", "success");
+  }
+
   async function savePassword() {
     const password = document.getElementById("adminPasswordInput").value;
     const confirm_password = document.getElementById("adminConfirmPasswordInput").value;
@@ -274,6 +316,13 @@
   }
 
   userBody.addEventListener("click", (event) => {
+    const displayNameBtn = event.target.closest(".edit-display-name");
+    if (displayNameBtn) {
+      const user = usersCache.find((item) => String(item.id) === displayNameBtn.dataset.id);
+      if (user) openDisplayNameModal(user);
+      return;
+    }
+
     const passwordBtn = event.target.closest(".set-password");
     if (passwordBtn) {
       const user = usersCache.find((item) => String(item.id) === passwordBtn.dataset.id);
@@ -310,6 +359,7 @@
     if (event.key === "Enter") searchUsers();
   });
   document.getElementById("savePasswordBtn").addEventListener("click", savePassword);
+  document.getElementById("saveDisplayNameBtn").addEventListener("click", saveDisplayName);
 
   loadSummary();
   loadUsers(1);

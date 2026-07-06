@@ -751,7 +751,11 @@ textarea.neon-input::-webkit-input-placeholder {
 }
 
 .admin-logs-table col.col-attendance {
-  width: 15%;
+  width: 13%;
+}
+
+.admin-logs-table col.col-action {
+  width: 6%;
 }
 
 .admin-logs-table .col-name,
@@ -759,6 +763,12 @@ textarea.neon-input::-webkit-input-placeholder {
 .admin-logs-table .col-weekday,
 .admin-logs-table .col-hours {
   white-space: nowrap;
+}
+
+.admin-logs-table .col-action,
+.admin-logs-table .action-cell {
+  white-space: nowrap;
+  text-align: center;
 }
 
 .admin-logs-table .col-project {

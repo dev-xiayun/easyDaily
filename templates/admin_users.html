@@ -83,6 +83,29 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="displayNameModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content glass-modal">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">修改姓名</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="section-subtitle">修改用户 <strong id="displayNameTargetUsername"></strong> 的显示姓名</p>
+        <div class="mb-3">
+          <label class="glow-label form-label">姓名</label>
+          <input type="text" class="form-control neon-input" id="adminDisplayNameInput" maxlength="50">
+        </div>
+        <div id="displayNameAlert" class="alert d-none mt-3"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-neon" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-neon" id="saveDisplayNameBtn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/admin_users.js') }}"></script>
