@@ -528,6 +528,27 @@
     showAlert(data.message || "开放成功", "success");
   }
 
+  async function importLegacyLogs(file) {
+    pageAlert.classList.add("d-none");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/admin/logs/import-legacy", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      showAlert(data.error || "导入失败");
+      return;
+    }
+
+    const createdUsers = (data.created_users || []).length;
+    const createdText = createdUsers ? `，自动创建 ${createdUsers} 个禁用账号` : "";
+    showAlert(`${data.message || "导入成功"}${data.extra || createdText}`, "success");
+    await searchLogs();
+  }
+
   userCombo = createComboField(document.getElementById("userCombo"), {
     placeholder: "输入姓名或用户名筛选",
     getLabel: (user) => `${user.display_name}（${user.username}）`,
@@ -579,6 +600,17 @@
     logsFileInput.value = "";
     if (!file) return;
     await importLogs(file);
+  });
+
+  const legacyLogsFileInput = document.getElementById("legacyLogsFileInput");
+  document.getElementById("importLegacyLogsBtn").addEventListener("click", () => {
+    legacyLogsFileInput.click();
+  });
+  legacyLogsFileInput.addEventListener("change", async () => {
+    const file = legacyLogsFileInput.files?.[0];
+    legacyLogsFileInput.value = "";
+    if (!file) return;
+    await importLegacyLogs(file);
   });
 
   document.getElementById("openLogBtn").addEventListener("click", openLogModalDialog);

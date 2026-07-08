@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
@@ -1233,6 +1234,220 @@ def import_historical_work_logs(records: list[dict[str, Any]]) -> dict[str, Any]
         "skipped_users": sorted(skipped_users),
         "skipped_projects": sorted(skipped_projects),
         "skipped_future": skipped_future,
+    }
+
+
+def resolve_project_id_by_name(project_name: str) -> int | None:
+    project_name = project_name.strip()
+    if not project_name:
+        return None
+    lookup = _build_project_id_lookup()
+    return lookup.get(project_name) or lookup.get(project_name.lower())
+
+
+def _generate_import_username(display_name: str, conn: sqlite3.Connection) -> str:
+    display_name = display_name.strip()
+    candidates: list[str] = []
+    if display_name:
+        candidates.append(display_name)
+    stripped = re.sub(r"[（(][^）)]*[）)]", "", display_name).strip()
+    if stripped and stripped not in candidates:
+        candidates.append(stripped)
+    compact = re.sub(r"\s+", "", stripped or display_name)
+    if compact and compact not in candidates:
+        candidates.append(compact)
+
+    for candidate in candidates:
+        if not conn.execute("SELECT id FROM users WHERE username = ?", (candidate,)).fetchone():
+            return candidate
+
+    base = candidates[-1] if candidates else "import_user"
+    for index in range(2, 10000):
+        username = f"{base}{index}"
+        if not conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone():
+            return username
+    raise ValueError(f"无法为姓名「{display_name}」生成唯一用户名")
+
+
+def create_disabled_import_user(display_name: str) -> dict[str, Any]:
+    display_name = display_name.strip()
+    if not display_name:
+        raise ValueError("姓名不能为空")
+
+    ts = now_text()
+    default_password = "import123456"
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT * FROM users WHERE display_name = ?",
+            (display_name,),
+        ).fetchone()
+        if existing is not None:
+            return row_to_user(existing)  # type: ignore[return-value]
+
+        username = _generate_import_username(display_name, conn)
+        cur = conn.execute(
+            """
+            INSERT INTO users (username, password_hash, display_name, role, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                username,
+                generate_password_hash(default_password, method="pbkdf2:sha256"),
+                display_name,
+                ROLE_USER,
+                USER_STATUS_REJECTED,
+                ts,
+                ts,
+            ),
+        )
+        user_id = cur.lastrowid
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row_to_user(row)  # type: ignore[return-value]
+
+
+def _ensure_legacy_import_user(
+    conn: sqlite3.Connection,
+    display_name: str,
+    user_lookup: dict[str, int],
+    created_users: list[str],
+) -> int:
+    user_id = user_lookup.get(display_name)
+    if user_id is not None:
+        return user_id
+
+    row = conn.execute(
+        "SELECT id, username FROM users WHERE display_name = ?",
+        (display_name,),
+    ).fetchone()
+    if row is not None:
+        user_id = int(row["id"])
+        user_lookup[display_name] = user_id
+        user_lookup[str(row["username"])] = user_id
+        return user_id
+
+    ts = now_text()
+    username = _generate_import_username(display_name, conn)
+    cur = conn.execute(
+        """
+        INSERT INTO users (username, password_hash, display_name, role, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            username,
+            generate_password_hash("import123456", method="pbkdf2:sha256"),
+            display_name,
+            ROLE_USER,
+            USER_STATUS_REJECTED,
+            ts,
+            ts,
+        ),
+    )
+    user_id = int(cur.lastrowid)
+    user_lookup[display_name] = user_id
+    user_lookup[username] = user_id
+    created_users.append(display_name)
+    return user_id
+
+
+def import_legacy_system_work_logs(project_name: str, records: list[dict[str, Any]]) -> dict[str, Any]:
+    project_id = resolve_project_id_by_name(project_name)
+    if project_id is None:
+        raise ValueError(f"项目名称「{project_name}」在系统中未找到，请先在项目管理中维护项目名称或别名")
+
+    user_lookup = _build_user_name_lookup(list_users())
+    today = date.today()
+    ts = now_text()
+
+    imported_count = 0
+    updated_count = 0
+    created_users: list[str] = []
+    skipped_future = 0
+
+    with get_conn() as conn:
+        for record in records:
+            display_name = str(record.get("姓名", "")).strip()
+            if not display_name:
+                continue
+
+            user_id = _ensure_legacy_import_user(conn, display_name, user_lookup, created_users)
+
+            date_value = record.get("日期")
+            if hasattr(date_value, "date"):
+                log_day = date_value.date()
+            elif isinstance(date_value, date):
+                log_day = date_value
+            else:
+                log_day = datetime.strptime(str(date_value)[:10], "%Y-%m-%d").date()
+            log_date = log_day.isoformat()
+
+            if log_day > today:
+                skipped_future += 1
+                continue
+
+            hours = round_hours(float(record.get("工时（小时）", 0)))
+            if hours <= 0:
+                continue
+            work_content = str(record.get("工作内容", "")).strip()
+
+            if log_day < today:
+                review_status = LOG_REVIEW_APPROVED
+                reviewed_at = ts
+            else:
+                review_status = LOG_REVIEW_PENDING
+                reviewed_at = None
+
+            existing = conn.execute(
+                """
+                SELECT id FROM work_logs
+                WHERE user_id = ? AND project_id = ? AND log_date = ?
+                """,
+                (user_id, project_id, log_date),
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE work_logs
+                    SET hours = ?, work_content = ?, review_status = ?, reject_reason = '',
+                        reviewed_by = NULL, reviewed_at = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (hours, work_content, review_status, reviewed_at, ts, existing["id"]),
+                )
+                updated_count += 1
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO work_logs (
+                        user_id, project_id, log_date, hours, work_content,
+                        review_status, reject_reason, reviewed_by, reviewed_at,
+                        created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, '', NULL, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        project_id,
+                        log_date,
+                        hours,
+                        work_content,
+                        review_status,
+                        reviewed_at,
+                        ts,
+                        ts,
+                    ),
+                )
+                imported_count += 1
+
+    if imported_count == 0 and updated_count == 0:
+        raise ValueError("没有可导入的日志记录")
+
+    return {
+        "imported_count": imported_count,
+        "updated_count": updated_count,
+        "created_users": sorted(set(created_users)),
+        "skipped_future": skipped_future,
+        "project_id": project_id,
     }
 
 

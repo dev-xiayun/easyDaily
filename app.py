@@ -18,6 +18,7 @@ from auth import admin_required, approved_user_required, login_required, manager
 from captcha import build_captcha_svg, clear_captcha, generate_captcha_code, store_captcha, verify_captcha
 from convert_logs import build_convert_result, records_to_excel_bytes
 from log_import import import_logs_from_excel
+from legacy_log_import import import_legacy_system_logs_from_excel
 from database import (
     ROLE_ADMIN,
     approve_work_log,
@@ -731,6 +732,42 @@ def api_admin_import_logs():
             "message": (
                 f"日志导入完成：新增 {result['imported_count']} 条，"
                 f"更新 {result['updated_count']} 条"
+            ),
+            **result,
+            "extra": extra,
+        }
+    )
+
+
+@app.route("/api/admin/logs/import-legacy", methods=["POST"])
+@admin_required
+def api_admin_import_legacy_logs():
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        return jsonify({"error": "请上传原系统日志 Excel 文件"}), 400
+
+    filename = upload.filename.lower()
+    if not filename.endswith((".xlsx", ".xls")):
+        return jsonify({"error": "仅支持 .xlsx 或 .xls 文件"}), 400
+
+    try:
+        result = import_legacy_system_logs_from_excel(upload.read())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    created_users = result.get("created_users") or []
+    extra_parts = []
+    if created_users:
+        extra_parts.append(f"自动创建 {len(created_users)} 个禁用账号")
+    if result.get("skipped_future"):
+        extra_parts.append(f"{result['skipped_future']} 条未来日期已跳过")
+    extra = f"（{ '，'.join(extra_parts)}）" if extra_parts else ""
+
+    return jsonify(
+        {
+            "message": (
+                f"原系统日志导入完成：项目「{result.get('project_name', '')}」，"
+                f"新增 {result['imported_count']} 条，更新 {result['updated_count']} 条"
             ),
             **result,
             "extra": extra,
